@@ -1,0 +1,6 @@
+[workspace]
+
+members = ["editor_core", "editor_app", "guids_generator"]
+
+[workspace.dependencies]
+thiserror = "1.0.40"
