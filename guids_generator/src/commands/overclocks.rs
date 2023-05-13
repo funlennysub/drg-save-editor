@@ -17,47 +17,7 @@ use unreal_asset::{
 
 use crate::fname;
 
-use super::create_write_pretty;
-
-trait ImportNoIdx {
-    fn find_import_no_index_by_content(
-        &self,
-        class_package: &FName,
-        class_name: &FName,
-        object_name: &FName,
-    ) -> Option<i32>;
-}
-
-impl<'a, C: Read + Seek> ImportNoIdx for Asset<C> {
-    fn find_import_no_index_by_content(
-        &self,
-        class_package: &FName,
-        class_name: &FName,
-        object_name: &FName,
-    ) -> Option<i32> {
-        for i in 0..self.imports.len() {
-            let import = &self.imports[i];
-            if import.class_package.get_content() == *class_package.get_content()
-                && import.class_name.get_content() == *class_name.get_content()
-                && import.object_name.get_content() == *object_name.get_content()
-            {
-                return Some(-(i as i32) - 1);
-            }
-        }
-        None
-    }
-}
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub enum Resource {
-    Credits(i32),
-    Croppa(f32),
-    Umanite(f32),
-    Bismor(f32),
-    Jadiz(f32),
-    Magnite(f32),
-    EnorPearl(f32),
-}
+use super::{create_write_pretty, Dwarf, ImportNoIdx, ResourceAmount};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub enum OverclockType {
@@ -67,19 +27,10 @@ pub enum OverclockType {
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub enum Dwarf {
-    Engineer,
-    Gunner,
-    Driller,
-    Scout,
-}
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Overclock {
     pub name: String,
-    pub cost: Vec<Resource>,
+    pub cost: Vec<ResourceAmount>,
     pub guid: String,
-    #[serde(rename = "type")]
     pub ty: OverclockType,
     pub dwarf: Dwarf,
 }
@@ -246,13 +197,13 @@ fn overclocks_command_inner(
                             .get_content()
                             .as_str()
                         {
-                            "RES_Credits" => Resource::Credits(price),
-                            "RES_EMBED_Enor" => Resource::EnorPearl(price as f32),
-                            "RES_EMBED_Jadiz" => Resource::Jadiz(price as f32),
-                            "RES_CARVED_Bismor" => Resource::Bismor(price as f32),
-                            "RES_CARVED_Umanite" => Resource::Umanite(price as f32),
-                            "RES_CARVED_Magnite" => Resource::Magnite(price as f32),
-                            "RES_VEIN_Croppa" => Resource::Croppa(price as f32),
+                            "RES_Credits" => ResourceAmount::Credits(price),
+                            "RES_EMBED_Enor" => ResourceAmount::EnorPearl(price as f32),
+                            "RES_EMBED_Jadiz" => ResourceAmount::Jadiz(price as f32),
+                            "RES_CARVED_Bismor" => ResourceAmount::Bismor(price as f32),
+                            "RES_CARVED_Umanite" => ResourceAmount::Umanite(price as f32),
+                            "RES_CARVED_Magnite" => ResourceAmount::Magnite(price as f32),
+                            "RES_VEIN_Croppa" => ResourceAmount::Croppa(price as f32),
                             s => todo!("{}", s),
                         }
                     })

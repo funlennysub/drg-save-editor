@@ -1,15 +1,47 @@
 use std::{
     fs::{self, File, OpenOptions},
-    path::{Path, PathBuf},
+    io::{Read, Seek},
+    path::Path,
     process::exit,
 };
 
-pub mod assets;
-pub mod cores;
-pub mod json2rust;
-pub mod overclocks;
+use unreal_asset::{types::fname::FName, Asset};
 
-pub fn open_file(path: &Path) -> File {
+pub(crate) mod assets;
+pub(crate) mod cores;
+pub(crate) mod json2rust;
+// pub(crate) mod overclocks;
+
+pub(crate) trait ImportNoIdx {
+    fn find_import_no_index_by_content(
+        &self,
+        class_package: &FName,
+        class_name: &FName,
+        object_name: &FName,
+    ) -> Option<i32>;
+}
+
+impl<C: Read + Seek> ImportNoIdx for Asset<C> {
+    fn find_import_no_index_by_content(
+        &self,
+        class_package: &FName,
+        class_name: &FName,
+        object_name: &FName,
+    ) -> Option<i32> {
+        for i in 0..self.imports.len() {
+            let import = &self.imports[i];
+            if import.class_package.get_content() == *class_package.get_content()
+                && import.class_name.get_content() == *class_name.get_content()
+                && import.object_name.get_content() == *object_name.get_content()
+            {
+                return Some(-(i as i32) - 1);
+            }
+        }
+        None
+    }
+}
+
+pub(crate) fn open_file(path: &Path) -> File {
     match OpenOptions::new().read(true).open(path) {
         Ok(file) => file,
         Err(err) => {
@@ -19,7 +51,30 @@ pub fn open_file(path: &Path) -> File {
     }
 }
 
-pub fn create_write_pretty<T: serde::Serialize>(out_file: PathBuf, res: T) {
+pub(crate) fn get_res_amount(name: &str, amount: i32) -> ResourceAmount {
+    match name {
+        "RES_Credits" => ResourceAmount::Credits(amount),
+        "RES_EMBED_Enor" => ResourceAmount::EnorPearl(amount as f32),
+        "RES_EMBED_Jadiz" => ResourceAmount::Jadiz(amount as f32),
+        "RES_CARVED_Bismor" => ResourceAmount::Bismor(amount as f32),
+        "RES_CARVED_Umanite" => ResourceAmount::Umanite(amount as f32),
+        "RES_CARVED_Magnite" => ResourceAmount::Magnite(amount as f32),
+        "RES_VEIN_Croppa" => ResourceAmount::Croppa(amount as f32),
+        s => todo!("{}", s),
+    }
+}
+
+pub(crate) fn u8_to_string(arr: [u8; 16]) -> String {
+    arr.iter()
+        .map(|d| format!("{d:02X}"))
+        .collect::<Vec<_>>()
+        .chunks_exact(4)
+        .map(|c| c.join(""))
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+pub(crate) fn create_write_pretty<T: serde::Serialize>(out_file: &Path, res: T) {
     let dir_path = match out_file.parent() {
         Some(dir) => dir,
         None => {
@@ -35,7 +90,7 @@ pub fn create_write_pretty<T: serde::Serialize>(out_file: PathBuf, res: T) {
                 .write(true)
                 .create(true)
                 .append(false)
-                .open(&out_file)
+                .open(out_file)
             {
                 Ok(file) => file,
                 Err(err) => {
@@ -64,4 +119,65 @@ macro_rules! fname {
     ($f:expr) => {
         $f.file_name().to_string_lossy().to_string()
     };
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub(crate) enum Dwarf {
+    Engineer,
+    Gunner,
+    Driller,
+    Scout,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) enum ResourceAmount {
+    Credits(i32),
+    Croppa(f32),
+    Umanite(f32),
+    Bismor(f32),
+    Jadiz(f32),
+    Magnite(f32),
+    EnorPearl(f32),
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) enum OverclockType {
+    Clean,
+    Balanced,
+    Unstable,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) enum CosmeticType {
+    Headwear,
+    Moustache,
+    Beard,
+    Sideburns,
+    VictoryMove,
+    PaintJob,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) struct Guid(pub [u8; 16]);
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) enum Schematic {
+    Overclock {
+        guid: String,
+        name: String,
+        cost: [ResourceAmount; 4],
+        dwarf: Dwarf,
+        ty: OverclockType,
+    },
+    Cosmetic {
+        guid: String,
+        name: String,
+        cost: [ResourceAmount; 4],
+        dwarf: Dwarf,
+        ty: CosmeticType,
+    },
+    Mineral {
+        guid: String,
+        resource: ResourceAmount,
+    },
 }

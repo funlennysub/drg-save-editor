@@ -1,9 +1,9 @@
-pub mod commands;
+mod commands;
 
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use commands::{assets, cores, json2rust, overclocks};
+use commands::{assets, cores::CoresCommand, json2rust};
 
 #[derive(Subcommand, Debug)]
 enum Command {
@@ -16,15 +16,15 @@ enum Command {
         #[arg(short, long = "out")]
         out_dir: PathBuf,
     },
-    /// Dump overclocks from assets.
-    Overclocks {
-        /// Direcotry with all game assets.
-        #[arg(short = 'd', long = "dir")]
-        asset_dir: PathBuf,
-        /// Write to json.
-        #[arg(short = 'o', long = "out")]
-        out_file: PathBuf,
-    },
+    // /// Dump overclocks from assets.
+    // Overclocks {
+    //     /// Direcotry with all game assets.
+    //     #[arg(short = 'd', long = "dir")]
+    //     asset_dir: PathBuf,
+    //     /// Write to json.
+    //     #[arg(short = 'o', long = "out")]
+    //     out_file: PathBuf,
+    // },
     /// Dump vanity/resource/victory pose/skin/cosmetic matrix cores.
     Cores {
         /// Direcotry with all game assets.
@@ -53,11 +53,11 @@ fn main() {
 
     match cli.command {
         Command::Assets { pak_file, out_dir } => assets::run(&pak_file, &out_dir),
-        Command::Overclocks {
-            asset_dir,
-            out_file,
-        } => overclocks::run(&asset_dir, out_file),
-        Command::Cores { asset_dir, out } => cores::run(&asset_dir, out),
+        // Command::Overclocks {
+        //     asset_dir,
+        //     out_file,
+        // } => overclocks::run(&asset_dir, out_file),
+        Command::Cores { asset_dir, out } => CoresCommand::new(asset_dir, out).run(),
         Command::Json2Rust { input } => json2rust::run(&input),
     }
 }
