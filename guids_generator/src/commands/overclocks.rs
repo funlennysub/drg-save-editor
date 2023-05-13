@@ -1,5 +1,6 @@
 use std::{
     fs::{self, File},
+    io::{Read, Seek},
     path::{Path, PathBuf},
     process::exit,
 };
@@ -17,6 +18,35 @@ use unreal_asset::{
 use crate::fname;
 
 use super::create_write_pretty;
+
+trait ImportNoIdx {
+    fn find_import_no_index_by_content(
+        &self,
+        class_package: &FName,
+        class_name: &FName,
+        object_name: &FName,
+    ) -> Option<i32>;
+}
+
+impl<'a, C: Read + Seek> ImportNoIdx for Asset<C> {
+    fn find_import_no_index_by_content(
+        &self,
+        class_package: &FName,
+        class_name: &FName,
+        object_name: &FName,
+    ) -> Option<i32> {
+        for i in 0..self.imports.len() {
+            let import = &self.imports[i];
+            if import.class_package.get_content() == *class_package.get_content()
+                && import.class_name.get_content() == *class_name.get_content()
+                && import.object_name.get_content() == *object_name.get_content()
+            {
+                return Some(-(i as i32) - 1);
+            }
+        }
+        None
+    }
+}
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub enum Resource {
@@ -48,7 +78,7 @@ pub enum Dwarf {
 pub struct Overclock {
     pub name: String,
     pub cost: Vec<Resource>,
-    pub guid: [u8; 16],
+    pub guid: String,
     #[serde(rename = "type")]
     pub ty: OverclockType,
     pub dwarf: Dwarf,
@@ -112,35 +142,33 @@ fn overclocks_command_inner(
             let asset = Asset::new(asset_data, Some(bulk_data), EngineVersion::VER_UE4_27)?;
 
             let schematic_index = asset
-                .find_import_no_index(
+                .find_import_no_index_by_content(
                     &FName::from_slice("/Script/CoreUObject"),
                     &FName::from_slice("Class"),
                     &FName::from_slice("Schematic"),
                 )
                 .unwrap();
             let clean_oc = asset
-                .find_import_no_index(
+                .find_import_no_index_by_content(
                     &FName::from_slice("/Script/FSD"),
                     &FName::from_slice("SchematicCategory"),
                     &FName::from_slice("SCAT_OC_Clean"),
                 )
                 .unwrap();
             let balanced_oc = asset
-                .find_import_no_index(
+                .find_import_no_index_by_content(
                     &FName::from_slice("/Script/FSD"),
                     &FName::from_slice("SchematicCategory"),
                     &FName::from_slice("SCAT_OC_Balanced"),
                 )
                 .unwrap();
             let unstable_oc = asset
-                .find_import_no_index(
+                .find_import_no_index_by_content(
                     &FName::from_slice("/Script/FSD"),
                     &FName::from_slice("SchematicCategory"),
                     &FName::from_slice("SCAT_OC_Unstable"),
                 )
                 .unwrap();
-
-            // dbg!(clean_oc, balanced_oc, unstable_oc);
 
             for export in asset
                 .asset_data
@@ -170,10 +198,20 @@ fn overclocks_command_inner(
                     .iter()
                     .filter_map(|p| cast!(Property, StructProperty, p))
                     .find(|p| p.name.get_content() == "SaveGameID")
-                    .map(|p| cast!(Property, GuidProperty, &p.value[0]).unwrap().value)
+                    .map(|p| {
+                        cast!(Property, GuidProperty, &p.value[0])
+                            .unwrap()
+                            .value
+                            .iter()
+                            .map(|d| format!("{d:02X}"))
+                            .collect::<Vec<_>>()
+                            .chunks_exact(4)
+                            .map(|c| c.join(""))
+                            .collect::<Vec<_>>()
+                            .join("-")
+                    })
                     .unwrap();
 
-                // dbg!(&properties);
                 let dwarf = properties
                     .iter()
                     .filter_map(|p| cast!(Property, ObjectProperty, p))
@@ -248,7 +286,7 @@ fn overclocks_command_inner(
                     Asset::new(oc_asset_data, Some(oc_bulk_data), EngineVersion::VER_UE4_27)?;
 
                 let ou_import = oc_asset
-                    .find_import_no_index(
+                    .find_import_no_index_by_content(
                         &FName::from_slice("/Script/CoreUObject"),
                         &FName::from_slice("Class"),
                         &FName::from_slice("OverclockUpgrade"),

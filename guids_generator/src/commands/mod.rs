@@ -34,6 +34,7 @@ pub fn create_write_pretty<T: serde::Serialize>(out_file: PathBuf, res: T) {
                 .read(true)
                 .write(true)
                 .create(true)
+                .append(false)
                 .open(&out_file)
             {
                 Ok(file) => file,
