@@ -5,12 +5,13 @@ use std::{
     process::exit,
 };
 
-use unreal_asset::{types::fname::FName, Asset};
+use unreal_asset::{
+    cast, properties::Property, reader::archive_trait::ArchiveTrait, types::fname::FName, Asset,
+};
 
 pub(crate) mod assets;
 pub(crate) mod cores;
 pub(crate) mod json2rust;
-// pub(crate) mod overclocks;
 
 pub(crate) trait ImportNoIdx {
     fn find_import_no_index_by_content(
@@ -72,6 +73,34 @@ pub(crate) fn u8_to_string(arr: [u8; 16]) -> String {
         .map(|c| c.join(""))
         .collect::<Vec<_>>()
         .join("-")
+}
+
+pub(crate) fn get_savegame_id(properties: &[Property]) -> Option<String> {
+    properties
+        .iter()
+        .filter_map(|p| cast!(Property, StructProperty, p))
+        .find(|p| p.name.get_content() == "SaveGameID")
+        .map(|p| u8_to_string(cast!(Property, GuidProperty, &p.value[0]).unwrap().value))
+}
+
+pub(crate) fn get_crafting_cost(props: &[Property], asset: &Asset<File>) -> Vec<ResourceAmount> {
+    let cost = props
+        .iter()
+        .filter_map(|p| cast!(Property, MapProperty, &p))
+        .find(|p| p.name.get_content() == "CraftingCost")
+        .map(|p| &p.value)
+        .unwrap();
+    cost.iter()
+        .map(|(_, index, price)| {
+            let price = cast!(Property, IntProperty, price).unwrap().value;
+            let what = cast!(Property, ObjectProperty, index).unwrap().value;
+
+            get_res_amount(
+                &asset.get_import(what).unwrap().object_name.get_content(),
+                price,
+            )
+        })
+        .collect::<Vec<_>>()
 }
 
 pub(crate) fn create_write_pretty<T: serde::Serialize>(out_file: &Path, res: T) {
@@ -165,14 +194,14 @@ pub(crate) enum Schematic {
     Overclock {
         guid: String,
         name: String,
-        cost: [ResourceAmount; 4],
+        cost: Vec<ResourceAmount>,
         dwarf: Dwarf,
         ty: OverclockType,
     },
     Cosmetic {
         guid: String,
         name: String,
-        cost: [ResourceAmount; 4],
+        cost: Vec<ResourceAmount>,
         dwarf: Dwarf,
         ty: CosmeticType,
     },

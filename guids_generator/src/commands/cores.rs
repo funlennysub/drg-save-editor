@@ -1,10 +1,12 @@
 use std::{
+    collections::HashMap,
     error,
     fs::{self, File},
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::exit,
 };
 
+use regex::Regex;
 use unreal_asset::{
     cast,
     engine_version::EngineVersion,
@@ -18,54 +20,16 @@ use unreal_asset::{
 use crate::fname;
 
 use super::{
-    create_write_pretty, get_res_amount, u8_to_string, Dwarf, ImportNoIdx, OverclockType, Schematic,
+    create_write_pretty, get_crafting_cost, get_res_amount, get_savegame_id, CosmeticType, Dwarf,
+    ImportNoIdx, OverclockType, Schematic,
 };
-
-/*
-FSD\Content\WeaponsNTools\_GlobalSkins\SKN_GlobalSkin_Warmonger.json
-FSD\Content\WeaponsNTools\_GlobalSkins\SKN_GlobalSkin_TrustyRusty.json
-FSD\Content\WeaponsNTools\_GlobalSkins\SKN_GlobalSkin_ToolOfDestruction.json
-FSD\Content\WeaponsNTools\_GlobalSkins\SKN_GlobalSkin_PrimalBlood.json
-FSD\Content\WeaponsNTools\_GlobalSkins\SKN_GlobalSkin_MintAssault.json
-FSD\Content\WeaponsNTools\_GlobalSkins\SKN_GlobalSkin_MetallicVintage.json
-FSD\Content\WeaponsNTools\_GlobalSkins\SKN_GlobalSkin_JungleRaid.json
-FSD\Content\WeaponsNTools\_GlobalSkins\SKN_GlobalSkin_GhostlyPale.json
-FSD\Content\WeaponsNTools\_GlobalSkins\SKN_GlobalSkin_DigitalDanger.json
-FSD\Content\WeaponsNTools\_GlobalSkins\SKN_GlobalSkin_DesertRanger.json
-FSD\Content\WeaponsNTools\_GlobalSkins\SKN_GlobalSkin_DarkDescent.json
-FSD\Content\WeaponsNTools\_GlobalSkins\SKN_GlobalSkin_BeyondTheCurcuit.json
-
-FSD\Content\GameElements\Schematics\ResourceSchematics\SCE_Umanite.json
-FSD\Content\GameElements\Schematics\ResourceSchematics\SCE_Magnite.json
-FSD\Content\GameElements\Schematics\ResourceSchematics\SCE_Enor.json
-FSD\Content\GameElements\Schematics\ResourceSchematics\SCE_Jadiz.json
-FSD\Content\GameElements\Schematics\ResourceSchematics\SCE_Croppa.json
-FSD\Content\GameElements\Schematics\ResourceSchematics\SCE_Bismor.json
-
-FSD\Content\Character\Vanity2\VictoryPoses\Released\VP_SwarmerStomp.json
-FSD\Content\Character\Vanity2\VictoryPoses\Released\VP_FallingBarrel.json
-FSD\Content\Character\Vanity2\VictoryPoses\Released\VP_TheatricalBow.json
-FSD\Content\Character\Vanity2\VictoryPoses\Released\VP_CaveRaider.json
-FSD\Content\Character\Vanity2\VictoryPoses\Released\VP_DualMugDrop.json
-FSD\Content\Character\Vanity2\VictoryPoses\Released\VP_Kisses.json
-FSD\Content\Character\Vanity2\VictoryPoses\Released\VP_HulkFlex.json
-FSD\Content\Character\Vanity2\VictoryPoses\Released\VP_Pennywise.json
-FSD\Content\Character\Vanity2\VictoryPoses\Released\VP_CrystalLover.json
-
-FSD\Content\Character\Vanity2\Sideburns\VSB_Sideburns.json
-
-FSD\Content\Character\Vanity2\Moustaches\VSB_Moustaches.json
-
-FSD\Content\Character\Vanity2\Headwear\VSB_Headwear.json
-
-FSD\Content\Character\Vanity2\Beards\VSB_Beards.json
-*/
 
 #[derive(Debug, Clone)]
 pub(crate) struct CoresCommand {
     pub(crate) asset_dir: PathBuf,
     pub(crate) out_dir: PathBuf,
     matrix_cores: Vec<Schematic>,
+    sid_map: HashMap<String, (String, Option<Dwarf>)>,
 }
 
 impl CoresCommand {
@@ -74,6 +38,7 @@ impl CoresCommand {
             asset_dir,
             out_dir,
             matrix_cores: Vec::new(),
+            sid_map: HashMap::new(),
         }
     }
 
@@ -83,17 +48,56 @@ impl CoresCommand {
             eprintln!("Error getting information: {:?}", res.as_ref().unwrap_err());
             exit(1);
         }
-        let res = res.as_ref().unwrap();
-        create_write_pretty(&self.out_dir, res);
+        create_write_pretty(&self.out_dir, &self.matrix_cores);
     }
 
     fn inner(&mut self) -> Result<(), Box<dyn error::Error>> {
+        self.generate_sid_map()?;
+
         self.get_mineral_cores()?;
         self.get_cosmetic_cores()?;
         self.get_overclocks()?;
 
-        dbg!(&self.matrix_cores);
+        Ok(())
+    }
 
+    fn generate_sid_map(&mut self) -> Result<(), Box<dyn error::Error>> {
+        let analytics_dir = &self.asset_dir.join("FSD/Content/Game/Analytics");
+
+        let data_file =
+            File::open(&analytics_dir.join("Google_Analytics_Schematic_ID_mapping.uasset"))?;
+        let bulk_file =
+            File::open(&analytics_dir.join("Google_Analytics_Schematic_ID_mapping.uexp"))?;
+        let asset = Asset::new(data_file, Some(bulk_file), EngineVersion::VER_UE4_27)?;
+        let exports = cast!(Export, DataTableExport, &asset.asset_data.exports[0]).unwrap();
+
+        let guid_re = Regex::new("([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})-([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})-([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})-([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})")?;
+        let class_name_re = Regex::new("(?P<name>.*) - (?P<class>.*)")?;
+
+        for export in &exports.table.data {
+            let key = export.name.get_content();
+            let guid = guid_re
+                .replace_all(&key, "$4$3$2$1-$8$7$6$5-$12$11$10$9-$16$15$14$13")
+                .to_string();
+            let property = cast!(Property, StrProperty, &export.value[1]).unwrap();
+            let name = property.value.clone().unwrap();
+
+            let caps = class_name_re.captures(&name);
+            if caps.is_none() {
+                self.sid_map.insert(guid, (name, None));
+                continue;
+            }
+            let caps = caps.unwrap();
+            let name = caps.name("name").unwrap().as_str().to_owned();
+            let class = caps.name("class").map(|m| m.as_str()).map(|c| match c {
+                "Driller" => Dwarf::Driller,
+                "Gunner" => Dwarf::Gunner,
+                "Scout" => Dwarf::Scout,
+                "Engineer" => Dwarf::Engineer,
+                cl => todo!("{}", cl),
+            });
+            self.sid_map.insert(guid, (name, class));
+        }
         Ok(())
     }
 
@@ -107,15 +111,7 @@ impl CoresCommand {
 
         let guid = exports
             .get(1)
-            .map(|e| &e.properties)
-            .and_then(|e| {
-                e.iter()
-                    .filter_map(|p| cast!(Property, StructProperty, p))
-                    .find(|p| p.name.get_content() == "SaveGameID")
-                    .map(|p| {
-                        u8_to_string(cast!(Property, GuidProperty, &p.value[0]).unwrap().value)
-                    })
-            })
+            .and_then(|e| get_savegame_id(&e.properties))
             .unwrap();
         let resource = exports
             .get(0)
@@ -186,19 +182,195 @@ impl CoresCommand {
         Ok(())
     }
 
+    fn get_cosmetics(
+        &mut self,
+        path: &str,
+        file_name: &str,
+        ty: CosmeticType,
+    ) -> Result<(), Box<dyn error::Error>> {
+        let dir = &self.asset_dir.join(path);
+        let (cosmetics, uexp) = (
+            File::open(&dir.join(format!("{file_name}.uasset")))?,
+            File::open(&dir.join(format!("{file_name}.uexp")))?,
+        );
+
+        let asset = Asset::new(cosmetics, Some(uexp), EngineVersion::VER_UE4_27)?;
+        let schematic_index = asset
+            .find_import_no_index_by_content(
+                &FName::from_slice("/Script/CoreUObject"),
+                &FName::from_slice("Class"),
+                &FName::from_slice("Schematic"),
+            )
+            .unwrap();
+
+        for export in asset
+            .asset_data
+            .exports
+            .iter()
+            .filter(|e| e.get_base_export().class_index.index == schematic_index)
+        {
+            let props = &export.get_normal_export().unwrap().properties;
+
+            let sid = get_savegame_id(props);
+            if sid.is_none() {
+                continue;
+            }
+            let guid = sid.unwrap();
+            let cost = get_crafting_cost(props, &asset);
+            let (name, dwarf) = self
+                .sid_map
+                .get(&guid)
+                .map(|(n, d)| (n.to_owned(), d.to_owned()))
+                .unwrap();
+            let dwarf = dwarf.unwrap();
+            self.matrix_cores.push(Schematic::Cosmetic {
+                guid,
+                name,
+                cost,
+                dwarf,
+                ty: ty.clone(),
+            })
+        }
+
+        Ok(())
+    }
+
     fn get_cosmetic_cores(&mut self) -> Result<(), Box<dyn error::Error>> {
+        for (path, name, ty) in vec![
+            (
+                r"FSD\Content\Character\Vanity2\Beards",
+                "VSB_Beards",
+                CosmeticType::Beard,
+            ),
+            (
+                r"FSD\Content\Character\Vanity2\Headwear",
+                "VSB_Headwear",
+                CosmeticType::Headwear,
+            ),
+            (
+                r"FSD\Content\Character\Vanity2\Moustaches",
+                "VSB_Moustaches",
+                CosmeticType::Moustache,
+            ),
+            (
+                r"FSD\Content\Character\Vanity2\Sideburns",
+                "VSB_Sideburns",
+                CosmeticType::Sideburns,
+            ),
+            (
+                r"FSD\Content\Character\Vanity2\VictoryPoses\Released",
+                "VP_SwarmerStomp",
+                CosmeticType::VictoryMove,
+            ),
+            (
+                r"FSD\Content\Character\Vanity2\VictoryPoses\Released",
+                "VP_FallingBarrel",
+                CosmeticType::VictoryMove,
+            ),
+            (
+                r"FSD\Content\Character\Vanity2\VictoryPoses\Released",
+                "VP_TheatricalBow",
+                CosmeticType::VictoryMove,
+            ),
+            (
+                r"FSD\Content\Character\Vanity2\VictoryPoses\Released",
+                "VP_CaveRaider",
+                CosmeticType::VictoryMove,
+            ),
+            (
+                r"FSD\Content\Character\Vanity2\VictoryPoses\Released",
+                "VP_DualMugDrop",
+                CosmeticType::VictoryMove,
+            ),
+            (
+                r"FSD\Content\Character\Vanity2\VictoryPoses\Released",
+                "VP_Kisses",
+                CosmeticType::VictoryMove,
+            ),
+            (
+                r"FSD\Content\Character\Vanity2\VictoryPoses\Released",
+                "VP_HulkFlex",
+                CosmeticType::VictoryMove,
+            ),
+            (
+                r"FSD\Content\Character\Vanity2\VictoryPoses\Released",
+                "VP_Pennywise",
+                CosmeticType::VictoryMove,
+            ),
+            (
+                r"FSD\Content\Character\Vanity2\VictoryPoses\Released",
+                "VP_CrystalLover",
+                CosmeticType::VictoryMove,
+            ),
+            (
+                r"FSD\Content\WeaponsNTools\_GlobalSkins",
+                "SKN_GlobalSkin_Warmonger",
+                CosmeticType::PaintJob,
+            ),
+            (
+                r"FSD\Content\WeaponsNTools\_GlobalSkins",
+                "SKN_GlobalSkin_TrustyRusty",
+                CosmeticType::PaintJob,
+            ),
+            (
+                r"FSD\Content\WeaponsNTools\_GlobalSkins",
+                "SKN_GlobalSkin_ToolOfDestruction",
+                CosmeticType::PaintJob,
+            ),
+            (
+                r"FSD\Content\WeaponsNTools\_GlobalSkins",
+                "SKN_GlobalSkin_PrimalBlood",
+                CosmeticType::PaintJob,
+            ),
+            (
+                r"FSD\Content\WeaponsNTools\_GlobalSkins",
+                "SKN_GlobalSkin_MintAssault",
+                CosmeticType::PaintJob,
+            ),
+            (
+                r"FSD\Content\WeaponsNTools\_GlobalSkins",
+                "SKN_GlobalSkin_MetallicVintage",
+                CosmeticType::PaintJob,
+            ),
+            (
+                r"FSD\Content\WeaponsNTools\_GlobalSkins",
+                "SKN_GlobalSkin_JungleRaid",
+                CosmeticType::PaintJob,
+            ),
+            (
+                r"FSD\Content\WeaponsNTools\_GlobalSkins",
+                "SKN_GlobalSkin_GhostlyPale",
+                CosmeticType::PaintJob,
+            ),
+            (
+                r"FSD\Content\WeaponsNTools\_GlobalSkins",
+                "SKN_GlobalSkin_DigitalDanger",
+                CosmeticType::PaintJob,
+            ),
+            (
+                r"FSD\Content\WeaponsNTools\_GlobalSkins",
+                "SKN_GlobalSkin_DesertRanger",
+                CosmeticType::PaintJob,
+            ),
+            (
+                r"FSD\Content\WeaponsNTools\_GlobalSkins",
+                "SKN_GlobalSkin_DarkDescent",
+                CosmeticType::PaintJob,
+            ),
+            (
+                r"FSD\Content\WeaponsNTools\_GlobalSkins",
+                "SKN_GlobalSkin_BeyondTheCurcuit",
+                CosmeticType::PaintJob,
+            ),
+        ] {
+            self.get_cosmetics(path, name, ty)?;
+        }
+
         Ok(())
     }
 
     fn get_overclocks(&mut self) -> Result<(), Box<dyn error::Error>> {
         let content_dir = &self.asset_dir.join("FSD").join("Content");
-        let st_path = &content_dir.join("Game").join("Text");
-        let st_uasset = File::open(st_path.join("ST_GearUpgrades.uasset"))?;
-        let st_uexp = File::open(st_path.join("ST_GearUpgrades.uexp"))?;
-        let st_asset = Asset::new(st_uasset, Some(st_uexp), EngineVersion::VER_UE4_27)?;
-        let st = &cast!(Export, StringTableExport, &st_asset.asset_data.exports[0])
-            .unwrap()
-            .table;
 
         for file in fs::read_dir(content_dir.join("WeaponsNTools"))? {
             let path = file?.path();
@@ -270,7 +442,7 @@ impl CoresCommand {
                     let normal_export = export.get_normal_export().ok_or("ne")?;
                     let properties = &normal_export.properties;
 
-                    let oc_type = properties
+                    let ty = properties
                         .iter()
                         .filter_map(|p| cast!(Property, ObjectProperty, p))
                         .find(|p| p.name.get_content() == "Category")
@@ -281,116 +453,22 @@ impl CoresCommand {
                             _ => unreachable!(),
                         })
                         .unwrap();
-                    let cost = &cast!(Property, MapProperty, &properties[5])
-                        .ok_or("mp")?
-                        .value;
 
-                    let guid = properties
-                        .iter()
-                        .filter_map(|p| cast!(Property, StructProperty, p))
-                        .find(|p| p.name.get_content() == "SaveGameID")
-                        .map(|p| {
-                            cast!(Property, GuidProperty, &p.value[0])
-                                .unwrap()
-                                .value
-                                .iter()
-                                .map(|d| format!("{d:02X}"))
-                                .collect::<Vec<_>>()
-                                .chunks_exact(4)
-                                .map(|c| c.join(""))
-                                .collect::<Vec<_>>()
-                                .join("-")
-                        })
+                    let guid = get_savegame_id(properties).unwrap();
+
+                    let cost = get_crafting_cost(properties, &asset);
+                    let (name, dwarf) = self
+                        .sid_map
+                        .get(&guid)
+                        .map(|(n, d)| (n.to_owned(), d.to_owned()))
                         .unwrap();
-
-                    let dwarf = properties
-                        .iter()
-                        .filter_map(|p| cast!(Property, ObjectProperty, p))
-                        .find(|p| p.name.get_content() == "UsedByCharacter")
-                        .map(|p| {
-                            match asset
-                                .get_import(p.value)
-                                .unwrap()
-                                .object_name
-                                .get_content()
-                                .as_str()
-                            {
-                                "ScoutID" => Dwarf::Scout,
-                                "DrillerID" => Dwarf::Driller,
-                                "GunnerID" => Dwarf::Gunner,
-                                "EngineerID" => Dwarf::Engineer,
-                                _ => unreachable!(),
-                            }
-                        })
-                        .unwrap();
-
-                    let cost = cost
-                        .iter()
-                        .map(|(_, index, price)| {
-                            let price = cast!(Property, IntProperty, price).unwrap().value;
-                            let what = cast!(Property, ObjectProperty, index).unwrap().value;
-
-                            get_res_amount(
-                                &asset.get_import(what).unwrap().object_name.get_content(),
-                                price,
-                            )
-                        })
-                        .collect::<Vec<_>>();
-
-                    let item = cast!(Property, ObjectProperty, &properties[4])
-                        .ok_or("op")?
-                        .value;
-                    let item = &asset
-                        .get_export(item)
-                        .unwrap()
-                        .get_normal_export()
-                        .unwrap()
-                        .properties;
-                    let oc = cast!(Property, ObjectProperty, &item[1]).unwrap().value;
-                    let oc_file = &asset
-                        .get_import(asset.get_import(oc).unwrap().outer_index)
-                        .unwrap()
-                        .object_name
-                        .get_content();
-                    let oc_file = Path::new(oc_file)
-                        .file_name()
-                        .unwrap()
-                        .to_string_lossy()
-                        .to_string();
-                    let oc_path = ocs_path.join(oc_file);
-
-                    let oc_asset_data = File::open(format!("{}.uasset", oc_path.display()))?;
-                    let oc_bulk_data = File::open(format!("{}.uexp", oc_path.display()))?;
-                    let oc_asset =
-                        Asset::new(oc_asset_data, Some(oc_bulk_data), EngineVersion::VER_UE4_27)?;
-
-                    let ou_import = oc_asset
-                        .find_import_no_index_by_content(
-                            &FName::from_slice("/Script/CoreUObject"),
-                            &FName::from_slice("Class"),
-                            &FName::from_slice("OverclockUpgrade"),
-                        )
-                        .unwrap();
-
-                    let export = &oc_asset
-                        .asset_data
-                        .exports
-                        .iter()
-                        .find(|e| e.get_base_export().class_index.index == ou_import)
-                        .unwrap();
-                    let name_export = &export.get_normal_export().unwrap().properties[2];
-                    let name = &cast!(Property, TextProperty, &name_export).unwrap();
-                    let name = if name.culture_invariant_string.is_none() {
-                        st.get_by_key(&name.value.clone().unwrap())
-                    } else {
-                        name.culture_invariant_string.as_ref()
-                    };
+                    let dwarf = dwarf.unwrap();
 
                     self.matrix_cores.push(Schematic::Overclock {
-                        name: name.unwrap().to_owned(),
-                        cost: cost.try_into().unwrap(),
+                        name,
+                        cost,
                         guid,
-                        ty: oc_type,
+                        ty,
                         dwarf,
                     });
                 }
