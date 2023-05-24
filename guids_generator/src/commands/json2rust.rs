@@ -1,15 +1,33 @@
-use std::{path::PathBuf, process::exit};
+use std::{error, fs::File, io::BufReader, path::PathBuf, process::exit};
 
-use walkdir::WalkDir;
+use super::*;
 
-pub fn run(input: &PathBuf) {
-    if !input.is_dir() {
-        eprintln!("Specified path is not a directory!");
+pub fn run(file: PathBuf, out: PathBuf) {
+    if !file.is_file() {
+        eprintln!("Specified path is not a file!");
         exit(1);
     }
+    let _ = inner(file, out);
+}
 
-    let walker = WalkDir::new(input).into_iter();
-    for entry in walker.filter_map(|e| e.ok()).filter(|e| e.path().is_file()) {
-        println!("{:?}", entry.path());
+struct Guid([u8; 16]);
+
+fn inner(file: PathBuf, out: PathBuf) -> Result<(), Box<dyn error::Error>> {
+    let file = File::open(file)?;
+    let reader = BufReader::new(file);
+
+    let schematics: Vec<Schematic> = serde_json::from_reader(reader)?;
+    print!("HashMap::from([");
+    for sh in schematics {
+        let guid = match &sh {
+            Schematic::Overclock { guid, .. } => guid,
+            Schematic::Cosmetic { guid, .. } => guid,
+            Schematic::Mineral { guid, .. } => guid,
+        };
+        let guid = str_to_u8(guid);
+        println!("({guid:?}, {sh}),");
     }
+    print!("]);");
+
+    Ok(())
 }

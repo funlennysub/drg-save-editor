@@ -5,9 +5,10 @@ use crate::{
     get, get_owned_resources,
 };
 
-use super::guids::resources::{BISMOR, CROPPA, ENOR_PEARL, JADIZ, MAGNITE, UMANITE};
+use crate::registry::{BISMOR, CROPPA, ENOR_PEARL, JADIZ, MAGNITE, UMANITE};
 
 #[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Minerals {
     pub magnite: f32,
     pub bismor: f32,
@@ -18,7 +19,7 @@ pub struct Minerals {
 }
 
 impl Minerals {
-    pub fn from_gvas(gvas: &GvasFile) -> Result<Self, Error> {
+    pub(crate) fn from_gvas(gvas: &GvasFile) -> Result<Self, Error> {
         let owned_resources = get_owned_resources(gvas)?;
 
         let magnite = get!(owned_resources, &MAGNITE)?.value.0;

@@ -6,9 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gvas = { path = "C:/Users/funlennysub/Documents/cockding/gvas", features = [
-    "serde",
-] }
+gvas = { version = "0.7.1", features = ["serde"] }
 indexmap = "1.9.3"
+lazy_static = "1.4.0"
 serde_json = "1.0.96"
 thiserror.workspace = true
+serde = { version = "1.0", features = ["derive"], optional = true }
+
+[features]
+serde = ["dep:serde"]
+wasm = []

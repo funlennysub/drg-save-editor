@@ -7,9 +7,11 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.2.7", features = ["derive"] }
+gvas = { path = "C:\\Users\\funlennysub\\Documents\\cockding\\gvas", features = [
+    "serde",
+] }
 regex = "1.8.1"
 serde = { version = "1.0.160", features = ["derive"] }
 serde_json = "1.0.96"
 unreal_asset = "0.1.14"
-unreal_pak = { git = "https://github.com/astrotechies/unrealmodding", rev="b65fd2e", package = "unreal_pak" }
-walkdir = "2.3.3"
+unreal_pak = { git = "https://github.com/astrotechies/unrealmodding", rev = "b65fd2e", package = "unreal_pak" }

@@ -5,9 +5,10 @@ use crate::{
     get, get_owned_resources,
 };
 
-use super::guids::resources::{BARLEY_BULB, MALT_STAR, STARCH_NUT, YEAST_CONE};
+use crate::registry::{BARLEY_BULB, MALT_STAR, STARCH_NUT, YEAST_CONE};
 
 #[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Brewing {
     pub starch_nut: f32,
     pub yeast_cone: f32,
@@ -16,7 +17,7 @@ pub struct Brewing {
 }
 
 impl Brewing {
-    pub fn from_gvas(gvas: &GvasFile) -> Result<Self, Error> {
+    pub(crate) fn from_gvas(gvas: &GvasFile) -> Result<Self, Error> {
         let owned_resources = get_owned_resources(gvas)?;
 
         let starch_nut = get!(owned_resources, &STARCH_NUT)?.value.0;

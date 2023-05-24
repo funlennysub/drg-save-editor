@@ -3,48 +3,11 @@ use gvas::{properties::Property, GvasFile};
 use crate::{
     error::{Error, ParsingError},
     get,
-    save_file::guids::dwarfs::{DRILLER, ENGINEER, GUNNER, SCOUT},
+    registry::{DRILLER, ENGINEER, GUNNER, MAX_LEVEL, PROMOTIONS, SCOUT, XP_TABLE},
 };
 
-const PROMOTIONS: [&str; 20] = [
-    "None",
-    "Bronze 1",
-    "Bronze 2",
-    "Bronze 3",
-    "Silver 1",
-    "Silver 2",
-    "Silver 3",
-    "Gold 1",
-    "Gold 2",
-    "Gold 3",
-    "Platinum 1",
-    "Platinum 2",
-    "Platinum 3",
-    "Diamond 1",
-    "Diamond 2",
-    "Diamond 3",
-    "Legendary 1",
-    "Legendary 2",
-    "Legendary 3",
-    "Legendary 3+",
-];
-
-const XP_TABLE: [i32; 25] = [
-    0, 3000, 7000, 12000, 18000, 25000, 33000, 42000, 52000, 63000, 75000, 88000, 102000, 117000,
-    132500, 148500, 165000, 182000, 199500, 217500, 236000, 255000, 274500, 294500, 315000,
-];
-
-const MAX_LEVEL: i32 = 25;
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum Dwarf {
-    Engineer,
-    Gunner,
-    Driller,
-    Scout,
-}
-
 #[derive(Debug, Default, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Rank {
     pub xp: i32,
     pub times_retired: i32,
@@ -56,13 +19,14 @@ impl Rank {
         let promotion = if times_retired > 18 {
             PROMOTIONS.last().unwrap()
         } else {
-            PROMOTIONS[times_retired as usize]
-        };
+            &PROMOTIONS[times_retired as usize]
+        }
+        .to_owned();
 
         Self {
             xp,
             times_retired,
-            promotion: promotion.to_string(),
+            promotion,
         }
     }
 
@@ -78,6 +42,7 @@ impl Rank {
 }
 
 #[derive(Debug, Default, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Characters {
     pub engineer: Rank,
     pub driller: Rank,
@@ -86,7 +51,7 @@ pub struct Characters {
 }
 
 impl Characters {
-    pub fn from_gvas(gvas: &GvasFile) -> Result<Self, Error> {
+    pub(crate) fn from_gvas(gvas: &GvasFile) -> Result<Self, Error> {
         let Self {
             mut engineer,
             mut driller,

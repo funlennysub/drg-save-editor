@@ -7,6 +7,7 @@ use eframe::{egui, NativeOptions};
 
 mod app;
 pub mod error;
+mod tabs;
 
 fn main() -> Result<(), eframe::Error> {
     let options = NativeOptions {

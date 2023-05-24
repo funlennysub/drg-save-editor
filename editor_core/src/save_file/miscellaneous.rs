@@ -5,11 +5,10 @@ use crate::{
     get, get_owned_resources,
 };
 
-use super::guids::resources::{
-    BLANK_CORES, DATA_CELLS, ERROR_CUBES, PHAZYONITE,
-};
+use crate::registry::{BLANK_CORES, DATA_CELLS, ERROR_CUBES, PHAZYONITE};
 
 #[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Miscellaneous {
     pub credits: i32,
     pub perk_points: i32,
@@ -20,7 +19,7 @@ pub struct Miscellaneous {
 }
 
 impl Miscellaneous {
-    pub fn from_gvas(gvas: &GvasFile) -> Result<Self, Error> {
+    pub(crate) fn from_gvas(gvas: &GvasFile) -> Result<Self, Error> {
         let props = &gvas.properties;
         let owned_resources = get_owned_resources(gvas)?;
 

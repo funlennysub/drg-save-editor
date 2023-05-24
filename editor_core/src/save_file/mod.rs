@@ -1,61 +1,80 @@
 pub mod brewing;
 pub mod dwarfs;
-pub mod guids;
+pub mod forge;
 pub mod minerals;
 pub mod miscellaneous;
-pub mod forge;
 
-use std::path::Path;
+#[cfg(not(feature = "wasm"))]
+use std::fs::File;
+use std::{io::Cursor, path::Path};
 
 use gvas::{
     properties::{
         int_property::{FloatProperty, IntProperty},
-        map_property::MapProperty,
         struct_property::{StructProperty, StructPropertyValue},
         Property,
     },
     types::Guid,
     GvasFile,
 };
-use indexmap::IndexMap;
 
 use crate::{
     error::{Error, ParsingError},
     get_mut, get_resource_mut,
-    save_file::guids::resources::*,
-    write_gvas,
+    registry::{
+        get_hints, BARLEY_BULB, BISMOR, BLANK_CORES, CROPPA, DATA_CELLS, ENOR_PEARL, ERROR_CUBES,
+        JADIZ, MAGNITE, MALT_STAR, PHAZYONITE, STARCH_NUT, UMANITE, YEAST_CONE,
+    },
 };
 
 use self::{
-    brewing::Brewing, dwarfs::Characters, guids::resources, minerals::Minerals,
-    miscellaneous::Miscellaneous, forge::Forge,
+    brewing::Brewing, dwarfs::Characters, forge::Forge, minerals::Minerals,
+    miscellaneous::Miscellaneous,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SaveFile {
     pub minerals: Minerals,
     pub brewing: Brewing,
     pub miscellaneous: Miscellaneous,
     pub dwarfs: Characters,
-    pub forge: Forge
+    pub forge: Forge,
 }
 
 impl SaveFile {
-    pub fn from_gvas(gvas: &GvasFile) -> Result<Self, Error> {
+    #[cfg(not(feature = "wasm"))]
+    pub fn from_path(path: &Path) -> Result<Self, Error> {
+        let mut file = File::open(path)?;
+        let gvas = GvasFile::read_with_hints(&mut file, &get_hints())?;
+
+        Ok(Self::from_gvas(&gvas)?)
+    }
+
+    pub fn from_bytes_rs(bytes: &[u8]) -> Result<Self, Error> {
+        let mut cursor = Cursor::new(bytes);
+        let gvas = GvasFile::read_with_hints(&mut cursor, &get_hints())?;
+
+        Ok(Self::from_gvas(&gvas)?)
+    }
+
+    fn from_gvas(gvas: &GvasFile) -> Result<Self, Error> {
         Ok(Self {
             minerals: Minerals::from_gvas(gvas)?,
             brewing: Brewing::from_gvas(gvas)?,
             miscellaneous: Miscellaneous::from_gvas(gvas)?,
             dwarfs: Characters::from_gvas(gvas)?,
+            forge: Forge::default(),
         })
     }
 
-    pub fn save(&self, gvas: &mut GvasFile, path: &Path) -> Result<(), Error> {
+    pub fn save(&self, gvas: &mut GvasFile, _path: &Path) -> Result<(), Error> {
         let Self {
             minerals,
             brewing,
             miscellaneous,
-            dwarfs
+            dwarfs: _,
+            forge: _,
         } = self;
 
         let props = &mut gvas.properties;
@@ -78,8 +97,7 @@ impl SaveFile {
             Property::from(FloatProperty::new(minerals.croppa));
         *get_resource_mut!(resources, UMANITE)? =
             Property::from(FloatProperty::new(minerals.umanite));
-        *get_resource_mut!(resources, JADIZ)? =
-            Property::from(FloatProperty::new(minerals.jadiz));
+        *get_resource_mut!(resources, JADIZ)? = Property::from(FloatProperty::new(minerals.jadiz));
         *get_resource_mut!(resources, ENOR_PEARL)? =
             Property::from(FloatProperty::new(minerals.enor_pearl));
 
@@ -104,6 +122,7 @@ impl SaveFile {
         *get_mut!(props, "Credits", IntProperty)? = IntProperty::new(miscellaneous.credits);
         *get_mut!(props, "PerkPoints", IntProperty)? = IntProperty::new(miscellaneous.perk_points);
 
-        write_gvas(path, gvas)
+        // write_gvas(path, gvas)
+        Ok(())
     }
 }

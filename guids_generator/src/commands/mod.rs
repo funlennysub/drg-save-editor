@@ -1,4 +1,5 @@
 use std::{
+    fmt,
     fs::{self, File, OpenOptions},
     io::{Read, Seek},
     path::Path,
@@ -12,6 +13,7 @@ use unreal_asset::{
 pub(crate) mod assets;
 pub(crate) mod cores;
 pub(crate) mod json2rust;
+pub(crate) mod sav2json;
 
 pub(crate) trait ImportNoIdx {
     fn find_import_no_index_by_content(
@@ -73,6 +75,19 @@ pub(crate) fn u8_to_string(arr: [u8; 16]) -> String {
         .map(|c| c.join(""))
         .collect::<Vec<_>>()
         .join("-")
+}
+
+// https://github.com/localcc/gvas/blob/0630c887dadfe6278c599eeb65424f02523c4c9e/src/types.rs#L180
+pub(crate) fn str_to_u8(str: &str) -> [u8; 16] {
+    let cleaned = str.replace('-', "");
+    let cleaned = cleaned.trim();
+    let cleaned = cleaned.strip_prefix('{').unwrap_or(cleaned);
+    let cleaned = cleaned.strip_suffix('}').unwrap_or(cleaned);
+    let mut guid = [0; 16];
+    for i in 0..16 {
+        guid[i] = u8::from_str_radix(&cleaned[i * 2..i * 2 + 2], 16).unwrap();
+    }
+    guid
 }
 
 pub(crate) fn get_savegame_id(properties: &[Property]) -> Option<String> {
@@ -194,14 +209,12 @@ pub(crate) enum Schematic {
     Overclock {
         guid: String,
         name: String,
-        cost: Vec<ResourceAmount>,
         dwarf: Dwarf,
         ty: OverclockType,
     },
     Cosmetic {
         guid: String,
         name: String,
-        cost: Vec<ResourceAmount>,
         dwarf: Dwarf,
         ty: CosmeticType,
     },
@@ -209,4 +222,24 @@ pub(crate) enum Schematic {
         guid: String,
         resource: ResourceAmount,
     },
+}
+
+impl fmt::Display for Schematic {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Schematic::Overclock {
+                guid,
+                name,
+                dwarf,
+                ty,
+            } => write!(f, "Overclock {{ guid: Guid({:?}), name: String::from({name:?}), dwarf: {dwarf:?}, ty: {ty:?}, status: None }}", str_to_u8(&guid)),
+            Schematic::Cosmetic {
+                guid,
+                name,
+                dwarf,
+                ty,
+            } => write!(f, "Cosmetic {{ guid: Guid({:?}), name: String::from({name:?}), dwarf: {dwarf:?}, ty: {ty:?}, status: None }}", str_to_u8(&guid)),
+            Schematic::Mineral { guid, resource } => write!(f, "Mineral {{ guid: Guid({:?}), resource: {resource:?}, status: None }}", str_to_u8(&guid)),
+        }
+    }
 }

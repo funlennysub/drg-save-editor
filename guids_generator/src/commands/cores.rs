@@ -20,8 +20,8 @@ use unreal_asset::{
 use crate::fname;
 
 use super::{
-    create_write_pretty, get_crafting_cost, get_res_amount, get_savegame_id, CosmeticType, Dwarf,
-    ImportNoIdx, OverclockType, Schematic,
+    create_write_pretty, get_res_amount, get_savegame_id, CosmeticType, Dwarf, ImportNoIdx,
+    OverclockType, Schematic,
 };
 
 #[derive(Debug, Clone)]
@@ -216,7 +216,6 @@ impl CoresCommand {
                 continue;
             }
             let guid = sid.unwrap();
-            let cost = get_crafting_cost(props, &asset);
             let (name, dwarf) = self
                 .sid_map
                 .get(&guid)
@@ -226,7 +225,6 @@ impl CoresCommand {
             self.matrix_cores.push(Schematic::Cosmetic {
                 guid,
                 name,
-                cost,
                 dwarf,
                 ty: ty.clone(),
             })
@@ -456,7 +454,6 @@ impl CoresCommand {
 
                     let guid = get_savegame_id(properties).unwrap();
 
-                    let cost = get_crafting_cost(properties, &asset);
                     let (name, dwarf) = self
                         .sid_map
                         .get(&guid)
@@ -466,7 +463,6 @@ impl CoresCommand {
 
                     self.matrix_cores.push(Schematic::Overclock {
                         name,
-                        cost,
                         guid,
                         ty,
                         dwarf,
