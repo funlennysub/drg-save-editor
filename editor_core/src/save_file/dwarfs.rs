@@ -6,7 +6,7 @@ use crate::{
     registry::{DRILLER, ENGINEER, GUNNER, MAX_LEVEL, PROMOTIONS, SCOUT, XP_TABLE},
 };
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Rank {
     pub xp: i32,
@@ -41,7 +41,7 @@ impl Rank {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Characters {
     pub engineer: Rank,

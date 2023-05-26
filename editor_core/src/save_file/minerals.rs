@@ -7,7 +7,7 @@ use crate::{
 
 use crate::registry::{BISMOR, CROPPA, ENOR_PEARL, JADIZ, MAGNITE, UMANITE};
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Minerals {
     pub magnite: f32,
@@ -16,6 +16,16 @@ pub struct Minerals {
     pub umanite: f32,
     pub jadiz: f32,
     pub enor_pearl: f32,
+}
+
+// #[cfg(feature = "field_access")]
+pub enum Mineral {
+    Magnite,
+    Bismor,
+    Croppa,
+    Umanite,
+    Jadiz,
+    EnorPearl,
 }
 
 impl Minerals {
@@ -37,5 +47,28 @@ impl Minerals {
             jadiz,
             enor_pearl,
         })
+    }
+
+    // #[cfg(feature = "field_access")]
+    pub fn get(&self, field: Mineral) -> f32 {
+        match field {
+            Mineral::Magnite => self.magnite,
+            Mineral::Bismor => self.bismor,
+            Mineral::Croppa => self.croppa,
+            Mineral::Umanite => self.umanite,
+            Mineral::Jadiz => self.jadiz,
+            Mineral::EnorPearl => self.enor_pearl,
+        }
+    }
+
+    pub fn set(&mut self, field: Mineral, value: f32) {
+        match field {
+            Mineral::Magnite => self.magnite = value,
+            Mineral::Bismor => self.bismor = value,
+            Mineral::Croppa => self.croppa = value,
+            Mineral::Umanite => self.umanite = value,
+            Mineral::Jadiz => self.jadiz = value,
+            Mineral::EnorPearl => self.enor_pearl = value,
+        }
     }
 }

@@ -4,3 +4,9 @@ members = ["editor_core", "guids_generator", "editor_ui"]
 
 [workspace.dependencies]
 thiserror = "1.0.40"
+
+[profile.dev.package.editor_core]
+opt-level = "s"
+
+[profile.dev.package.leptos_macro]
+opt-level = 3

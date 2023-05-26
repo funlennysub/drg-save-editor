@@ -5,7 +5,7 @@ use crate::registry::{CosmeticType::*, Dwarf::*, OverclockType::*, Resource::*, 
 use gvas::types::Guid;
 use lazy_static::lazy_static;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Resource {
     Credits,
@@ -17,7 +17,7 @@ pub enum Resource {
     EnorPearl,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum OverclockType {
     Clean,
@@ -25,7 +25,7 @@ pub enum OverclockType {
     Unstable,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum CosmeticType {
     Headwear,
@@ -36,14 +36,14 @@ pub enum CosmeticType {
     PaintJob,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Status {
     Forged,
     Unforged,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Schematic {
     Overclock {

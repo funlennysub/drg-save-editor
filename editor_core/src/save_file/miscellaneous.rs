@@ -7,7 +7,7 @@ use crate::{
 
 use crate::registry::{BLANK_CORES, DATA_CELLS, ERROR_CUBES, PHAZYONITE};
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Miscellaneous {
     pub credits: i32,

@@ -7,7 +7,7 @@ use crate::{
 
 use crate::registry::{BARLEY_BULB, MALT_STAR, STARCH_NUT, YEAST_CONE};
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Brewing {
     pub starch_nut: f32,

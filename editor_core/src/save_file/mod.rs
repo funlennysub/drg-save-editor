@@ -32,7 +32,7 @@ use self::{
     miscellaneous::Miscellaneous,
 };
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SaveFile {
     pub minerals: Minerals,
@@ -48,14 +48,14 @@ impl SaveFile {
         let mut file = File::open(path)?;
         let gvas = GvasFile::read_with_hints(&mut file, &get_hints())?;
 
-        Ok(Self::from_gvas(&gvas)?)
+        Self::from_gvas(&gvas)
     }
 
-    pub fn from_bytes_rs(bytes: &[u8]) -> Result<Self, Error> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         let mut cursor = Cursor::new(bytes);
         let gvas = GvasFile::read_with_hints(&mut cursor, &get_hints())?;
 
-        Ok(Self::from_gvas(&gvas)?)
+        Self::from_gvas(&gvas)
     }
 
     fn from_gvas(gvas: &GvasFile) -> Result<Self, Error> {
@@ -64,7 +64,7 @@ impl SaveFile {
             brewing: Brewing::from_gvas(gvas)?,
             miscellaneous: Miscellaneous::from_gvas(gvas)?,
             dwarfs: Characters::from_gvas(gvas)?,
-            forge: Forge::default(),
+            forge: Forge::from_gvas(gvas)?,
         })
     }
 

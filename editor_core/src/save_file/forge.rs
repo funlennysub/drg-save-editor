@@ -11,7 +11,7 @@ use crate::{
     registry::{Schematic, Status, SCHEMATICS},
 };
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Forge {
     pub owned_schematics: HashMap<[u8; 16], Schematic>,
@@ -88,10 +88,7 @@ impl Forge {
     }
 }
 
-fn get_array(
-    schematic_save: &Vec<(String, Property)>,
-    prop: String,
-) -> Result<&ArrayProperty, Error> {
+fn get_array(schematic_save: &[(String, Property)], prop: String) -> Result<&ArrayProperty, Error> {
     Ok(schematic_save
         .iter()
         .find_map(|p| match p.0 == prop {
